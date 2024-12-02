@@ -1,81 +1,152 @@
-import React, { useEffect, useState } from 'react';
-import * as d3 from 'd3';
-
-const SingaporeHeatmap = () => {
-  const [geoData, setGeoData] = useState(null);
-  const width = 800;
-  const height = 600;
-
-  useEffect(() => {
-
-    fetch('https://chi-loong.github.io/HCDIV/assignments/sgmap.json')
-      .then(response => response.json())
-      .then(mapData => {
-        setGeoData(mapData);
-      });
-  }, []);
-
-
-  const populationData = {
-    "Admiralty": 13600,
-    "Alexandra Hill": 13220,
-    "Alexandra North": 2930,
-    "Aljunied": 43190,
-    // ... 
-  };
-
-  if (!geoData) {
-    return <div className="flex items-center justify-center h-64">Loading map data...</div>;
-  }
-
-
-  const projection = d3.geoMercator()
-    .fitSize([width, height], geoData);
-
-
-  const path = d3.geoPath().projection(projection);
-
-
-  const populations = Object.values(populationData).filter(v => v > 0);
-  const colorScale = d3.scaleSequential(d3.interpolateBlues)
-    .domain([0, d3.max(populations)]);
-
-  return (
-    <div className="w-full max-w-4xl mx-auto p-4">
-      <h2 className="text-2xl font-bold mb-4">Singapore Population Density Heatmap</h2>
-      <div className="border rounded-lg p-4 bg-white">
-        <svg width={width} height={height}>
-          <g>
-            {geoData.features.map((feature, i) => {
-              const population = populationData[feature.properties.name] || 0;
-              return (
-                <path
-                  key={i}
-                  d={path(feature)}
-                  fill={population > 0 ? colorScale(population) : '#eee'}
-                  stroke="#fff"
-                  strokeWidth="0.5"
-                  className="transition-colors duration-200 hover:opacity-80"
-                >
-                  <title>
-                    {feature.properties.name}: {population.toLocaleString()} residents
-                  </title>
-                </path>
-              );
-            })}
-          </g>
-        </svg>
-        
-        {/* Legend */}
-        <div className="mt-4 flex items-center justify-center">
-          <div className="flex items-center space-x-2">
-            <div className="w-24 h-4 bg-gradient-to-r from-white to-blue-700" />
-            <span className="text-sm">Population Density</span>
-          </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Singapore Population Density Heatmap</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .tooltip {
+            position: absolute;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
+        }
+        .legend {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .legend-item {
+            display: inline-block;
+            margin: 0 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Singapore Population Density Heatmap (2023)</h1>
+        <div id="map"></div>
+        <div class="legend">
+            <div class="legend-item">
+                <div style="width: 200px; height: 20px; background: linear-gradient(to right, #f7fbff, #08519c);"></div>
+                <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+                    <span>0</span>
+                    <span>Population Density</span>
+                    <span>100k+</span>
+                </div>
+            </div>
         </div>
-      </div>
     </div>
-  );
-};
+    <div class="tooltip"></div>
 
-export default SingaporeHeatmap;
+    <script>
+        const width = 800;
+        const height = 600;
+        const svg = d3.select("#map")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", [0, 0, width, height])
+            .style("max-width", "100%")
+            .style("height", "auto");
+
+
+        const g = svg.append("g");
+
+
+        const zoom = d3.zoom()
+            .scaleExtent([1, 8])
+            .on("zoom", (event) => {
+                g.attr("transform", event.transform);
+            });
+
+        svg.call(zoom);
+
+
+        const colorScale = d3.scaleSequential(d3.interpolateBlues)
+            .domain([0, 100000]);
+
+
+        const tooltip = d3.select(".tooltip");
+
+
+        Promise.all([
+            d3.json("https://chi-loong.github.io/HCDIV/assignments/sgmap.json"),
+        ]).then(([mapData]) => {
+
+            const projection = d3.geoMercator()
+                .fitSize([width, height], mapData);
+
+
+            const path = d3.geoPath()
+                .projection(projection);
+
+
+            const populationData = {
+                "Admiralty": 13600,
+                "Alexandra Hill": 13220,
+                "Alexandra North": 2930,
+                "Aljunied": 43190,
+                "Woodlands East": 100220,
+                "Tampines East": 126460,
+
+            };
+
+
+            g.selectAll("path")
+                .data(mapData.features)
+                .enter()
+                .append("path")
+                .attr("d", path)
+                .attr("fill", d => {
+                    const population = populationData[d.properties.name] || 0;
+                    return population > 0 ? colorScale(population) : "#eee";
+                })
+                .attr("stroke", "white")
+                .attr("stroke-width", 0.5)
+                .on("mouseover", function(event, d) {
+                    d3.select(this)
+                        .attr("stroke-width", 1.5)
+                        .attr("stroke", "#333");
+                    
+                    const population = populationData[d.properties.name] || 0;
+                    tooltip.style("display", "block")
+                        .html(`
+                            <strong>${d.properties.name}</strong><br/>
+                            Population: ${population.toLocaleString()}
+                        `)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", function() {
+                    d3.select(this)
+                        .attr("stroke-width", 0.5)
+                        .attr("stroke", "white");
+                    tooltip.style("display", "none");
+                });
+        });
+    </script>
+</body>
+</html>
