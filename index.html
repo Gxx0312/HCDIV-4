@@ -1,154 +1,81 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        .map-container {
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .subzone {
-            fill: #e0e0e0;
-            stroke: #fff;
-            stroke-width: 0.5;
-            transition: fill 0.2s;
-        }
-        .subzone:hover {
-            stroke: #000;
-            stroke-width: 1;
-        }
-        .tooltip {
-            position: absolute;
-            padding: 8px;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            border-radius: 4px;
-            font-size: 12px;
-            pointer-events: none;
-            display: none;
-        }
-        .legend {
-            position: absolute;
-            right: 20px;
-            top: 20px;
-            background: white;
-            padding: 10px;
-            border-radius: 4px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            margin: 5px 0;
-        }
-        .legend-color {
-            width: 20px;
-            height: 20px;
-            margin-right: 8px;
-        }
-    </style>
-</head>
-<body>
-    <div class="map-container">
-        <div id="tooltip" class="tooltip"></div>
-        <div class="legend">
-            <h3 style="margin: 0 0 10px 0">Population</h3>
-            <div class="legend-item">
-                <div class="legend-color" style="background: #edf8fb"></div>
-                <span>0 - 20,000</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: #b3cde3"></div>
-                <span>20,000 - 40,000</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: #8c96c6"></div>
-                <span>40,000 - 60,000</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: #88419d"></div>
-                <span>60,000 - 80,000</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: #4d004b"></div>
-                <span>>80,000</span>
-            </div>
+import React, { useEffect, useState } from 'react';
+import * as d3 from 'd3';
+
+const SingaporeHeatmap = () => {
+  const [geoData, setGeoData] = useState(null);
+  const width = 800;
+  const height = 600;
+
+  useEffect(() => {
+
+    fetch('https://chi-loong.github.io/HCDIV/assignments/sgmap.json')
+      .then(response => response.json())
+      .then(mapData => {
+        setGeoData(mapData);
+      });
+  }, []);
+
+
+  const populationData = {
+    "Admiralty": 13600,
+    "Alexandra Hill": 13220,
+    "Alexandra North": 2930,
+    "Aljunied": 43190,
+    // ... 
+  };
+
+  if (!geoData) {
+    return <div className="flex items-center justify-center h-64">Loading map data...</div>;
+  }
+
+
+  const projection = d3.geoMercator()
+    .fitSize([width, height], geoData);
+
+
+  const path = d3.geoPath().projection(projection);
+
+
+  const populations = Object.values(populationData).filter(v => v > 0);
+  const colorScale = d3.scaleSequential(d3.interpolateBlues)
+    .domain([0, d3.max(populations)]);
+
+  return (
+    <div className="w-full max-w-4xl mx-auto p-4">
+      <h2 className="text-2xl font-bold mb-4">Singapore Population Density Heatmap</h2>
+      <div className="border rounded-lg p-4 bg-white">
+        <svg width={width} height={height}>
+          <g>
+            {geoData.features.map((feature, i) => {
+              const population = populationData[feature.properties.name] || 0;
+              return (
+                <path
+                  key={i}
+                  d={path(feature)}
+                  fill={population > 0 ? colorScale(population) : '#eee'}
+                  stroke="#fff"
+                  strokeWidth="0.5"
+                  className="transition-colors duration-200 hover:opacity-80"
+                >
+                  <title>
+                    {feature.properties.name}: {population.toLocaleString()} residents
+                  </title>
+                </path>
+              );
+            })}
+          </g>
+        </svg>
+        
+        {/* Legend */}
+        <div className="mt-4 flex items-center justify-center">
+          <div className="flex items-center space-x-2">
+            <div className="w-24 h-4 bg-gradient-to-r from-white to-blue-700" />
+            <span className="text-sm">Population Density</span>
+          </div>
         </div>
+      </div>
     </div>
+  );
+};
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-    <script>
-
-        Promise.all([
-            fetch('https://chi-loong.github.io/HCDIV/assignments/sgmap.json').then(response => response.json()),
-
-            Promise.resolve([
-
-                {Subzone: "Woodlands East", Population: 100220},
-                {Subzone: "Tampines East", Population: 126460},
-                {Subzone: "Bedok North", Population: 82770},
-
-            ])
-        ]).then(([mapData, populationData]) => {
-
-            const width = 800;
-            const height = 600;
-
-
-            const svg = d3.select('.map-container')
-                .append('svg')
-                .attr('viewBox', '0 0 800 600')
-                .attr('width', '100%')
-                .attr('height', '100%');
-
-
-            const projection = d3.geoMercator()
-                .fitSize([width, height], mapData);
-
-            const path = d3.geoPath()
-                .projection(projection);
-
-
-            const colorScale = d3.scaleThreshold()
-                .domain([20000, 40000, 60000, 80000])
-                .range(['#edf8fb', '#b3cde3', '#8c96c6', '#88419d', '#4d004b']);
-
-
-            const tooltip = d3.select('#tooltip');
-
-
-            svg.selectAll('path')
-                .data(mapData.features)
-                .enter()
-                .append('path')
-                .attr('d', path)
-                .attr('class', 'subzone')
-                .attr('fill', d => {
-                    const population = populationData.find(p => p.Subzone === d.properties.Name)?.Population || 0;
-                    return colorScale(population);
-                })
-                .on('mouseover', function(event, d) {
-                    const population = populationData.find(p => p.Subzone === d.properties.Name)?.Population || 0;
-                    tooltip.style('display', 'block')
-                        .html(`
-                            <strong>${d.properties.Name}</strong><br/>
-                            Population: ${population.toLocaleString()}
-                        `);
-                    d3.select(this)
-                        .style('stroke', '#000')
-                        .style('stroke-width', '1');
-                })
-                .on('mousemove', function(event) {
-                    tooltip.style('left', (event.pageX + 10) + 'px')
-                        .style('top', (event.pageY + 10) + 'px');
-                })
-                .on('mouseout', function() {
-                    tooltip.style('display', 'none');
-                    d3.select(this)
-                        .style('stroke', '#fff')
-                        .style('stroke-width', '0.5');
-                });
-        });
-    </script>
-</body>
-</html>
+export default SingaporeHeatmap;
