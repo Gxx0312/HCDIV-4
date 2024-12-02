@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        .map-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .subzone {
+            fill: #e0e0e0;
+            stroke: #fff;
+            stroke-width: 0.5;
+            transition: fill 0.2s;
+        }
+        .subzone:hover {
+            stroke: #000;
+            stroke-width: 1;
+        }
+        .tooltip {
+            position: absolute;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
+        }
+        .legend {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="map-container">
+        <div id="tooltip" class="tooltip"></div>
+        <div class="legend">
+            <h3 style="margin: 0 0 10px 0">Population</h3>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #edf8fb"></div>
+                <span>0 - 20,000</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #b3cde3"></div>
+                <span>20,000 - 40,000</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #8c96c6"></div>
+                <span>40,000 - 60,000</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #88419d"></div>
+                <span>60,000 - 80,000</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #4d004b"></div>
+                <span>>80,000</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script>
+
+        Promise.all([
+            fetch('https://chi-loong.github.io/HCDIV/assignments/sgmap.json').then(response => response.json()),
+
+            Promise.resolve([
+                {Subzone: "Woodlands East", Population: 100220},
+                {Subzone: "Tampines East", Population: 126460},
+                {Subzone: "Bedok North", Population: 82770},
+
+            ])
+        ]).then(([mapData, populationData]) => {
+
+            const width = 800;
+            const height = 600;
+
+
+            const svg = d3.select('.map-container')
+                .append('svg')
+                .attr('viewBox', '0 0 800 600')
+                .attr('width', '100%')
+                .attr('height', '100%');
+
+
+            const projection = d3.geoMercator()
+                .fitSize([width, height], mapData);
+
+
+            const path = d3.geoPath()
+                .projection(projection);
+
+
+            const colorScale = d3.scaleThreshold()
+                .domain([20000, 40000, 60000, 80000])
+                .range(['#edf8fb', '#b3cde3', '#8c96c6', '#88419d', '#4d004b']);
+
+            const tooltip = d3.select('#tooltip');
+
+
+            svg.selectAll('path')
+                .data(mapData.features)
+                .enter()
+                .append('path')
+                .attr('d', path)
+                .attr('class', 'subzone')
+                .attr('fill', d => {
+                    const population = populationData.find(p => p.Subzone === d.properties.Name)?.Population || 0;
+                    return colorScale(population);
+                })
+                .on('mouseover', function(event, d) {
+                    const population = populationData.find(p => p.Subzone === d.properties.Name)?.Population || 0;
+                    tooltip.style('display', 'block')
+                        .html(`
+                            <strong>${d.properties.Name}</strong><br/>
+                            Population: ${population.toLocaleString()}
+                        `);
+                    d3.select(this)
+                        .style('stroke', '#000')
+                        .style('stroke-width', '1');
+                })
+                .on('mousemove', function(event) {
+                    tooltip.style('left', (event.pageX + 10) + 'px')
+                        .style('top', (event.pageY + 10) + 'px');
+                })
+                .on('mouseout', function() {
+                    tooltip.style('display', 'none');
+                    d3.select(this)
+                        .style('stroke', '#fff')
+                        .style('stroke-width', '0.5');
+                });
+        });
+    </script>
+</body>
+</html>
